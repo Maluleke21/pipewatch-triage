@@ -53,26 +53,31 @@
         var alertLayer = L.layerGroup().addTo(map); // New layer group
         
         async function fetchAlerts() {
-            try {
-                const response = await fetch('/api/triage');
-                const data = await response.json();
-                let alertsHtml = '';
-                
-                alertLayer.clearLayers(); // Clears old dots every tick
-                
-                if(data.alerts && data.alerts.length > 0) {
-                    data.alerts.forEach(alert => {
-                        let coords = blocks[alert.block_id] || [-26.206, 28.040];
-                        L.circleMarker(coords, {color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.7, radius: 10, className: 'pulse'}).addTo(alertLayer)
-                            .bindPopup(`<b style="color:black;">${alert.block_id}</b><br><span style="color:black;">Risk: ${alert.asset_risk}</span>`).openPopup();
-                        alertsHtml += `<div class="alert-card"><h4>⚠️ ${alert.block_id}</h4><p style="margin:5px 0; font-size:0.9em;">Flow: ${alert.flow_rate} L/s<br>Pressure: ${alert.pressure} kPa</p></div>`;
-                    });
-                } else {
-                    alertsHtml = '<p style="color:#10b981;">System normal. No active anomalies.</p>';
-                }
-                document.getElementById('alerts').innerHTML = alertsHtml;
-            } catch (e) { console.log("Waiting for API..."); }
+    try {
+        const response = await fetch('/api/triage');
+        const data = await response.json();
+        
+        // Removed alertLayer.clearLayers() so pins stay on the map forever
+        
+        if(data.alerts && data.alerts.length > 0) {
+            let alertsHtml = document.getElementById('alerts').innerHTML; 
+            // If the sidebar currently says "System normal", clear it out first
+            if (alertsHtml.includes("System normal")) {
+                alertsHtml = ''; 
+            }
+            
+            data.alerts.forEach(alert => {
+                let coords = blocks[alert.block_id] || [-26.206, 28.040];
+                L.circleMarker(coords, {color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.7, radius: 10, className: 'pulse'}).addTo(alertLayer)
+                    .bindPopup(`<b style="color:black;">${alert.block_id}</b><br><span style="color:black;">Risk: ${alert.asset_risk}</span>`).openPopup();
+                alertsHtml += `<div class="alert-card"><h4>⚠️ ${alert.block_id}</h4><p style="margin:5px 0; font-size:0.9em;">Flow: ${alert.flow_rate} L/s<br>Pressure: ${alert.pressure} kPa</p></div>`;
+            });
+            document.getElementById('alerts').innerHTML = alertsHtml;
         }
+        // Removed the 'else' block so the sidebar doesn't reset to "System normal"
+    } catch (e) { console.log("Waiting for API..."); }
+}
+        
         setInterval(fetchAlerts, 3000);
     </script>
 </body>
