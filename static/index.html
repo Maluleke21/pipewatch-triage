@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PipeWatch Enterprise Triage</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; background: #0b0f19; color: #e2e8f0; display: flex; flex-direction: column; height: 100vh; }
+        header { background: rgba(15, 23, 42, 0.9); padding: 20px; border-bottom: 1px solid #1e293b; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.5); }
+        h2 { margin: 0; color: #38bdf8; font-size: 1.5rem; text-transform: uppercase; letter-spacing: 1px; }
+        .container { display: flex; flex: 1; padding: 20px; gap: 20px; }
+        #map { flex: 2; border-radius: 12px; border: 1px solid #334155; }
+        #sidebar { flex: 1; background: #1e293b; border-radius: 12px; padding: 20px; overflow-y: auto; border: 1px solid #334155; }
+        .alert-card { background: #334155; border-left: 4px solid #ef4444; padding: 15px; margin-bottom: 15px; border-radius: 6px; }
+        .alert-card h4 { margin: 0 0 10px 0; color: #ef4444; }
+        .pulse { animation: pulsate 1.5s ease-out infinite; opacity: 0.8; }
+        @keyframes pulsate { 0% { transform: scale(0.1); opacity: 0; } 50% { opacity: 1; } 100% { transform: scale(1.2); opacity: 0; } }
+        
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(11, 15, 25, 0.95); display: flex; justify-content: center; align-items: center; z-index: 9999; backdrop-filter: blur(5px); }
+        .modal-content { background: #1e293b; padding: 30px; border-radius: 12px; border: 1px solid #334155; max-width: 500px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.8); }
+        .modal-content p { color: #cbd5e1; line-height: 1.6; margin-bottom: 20px; }
+        .modal-btn { background: #38bdf8; color: #0f172a; border: none; padding: 12px 24px; font-weight: bold; font-size: 1rem; border-radius: 6px; cursor: pointer; width: 100%; transition: 0.2s; }
+        .modal-btn:hover { background: #0ea5e9; color: white; }
+    </style>
+</head>
+<body>
+    <div id="welcome-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 style="color: #38bdf8; margin-top: 0;">PipeWatch Triage Demo</h2>
+            <p>Welcome to the Mnwanati Solutions hackathon prototype. This platform monitors simulated Marshalltown night-flow water telemetry to detect silent underground pipe bursts.</p>
+            <ul style="color: #94a3b8; text-align: left; line-height: 1.6; margin-bottom: 20px;">
+                <li><b>Live Telemetry:</b> The Python backend is simulating 1:00 AM - 4:00 AM flow data.</li>
+                <li><b>AI Detection:</b> A Scikit-learn Isolation Forest model identifies critical pressure drops.</li>
+                <li><b>Automated Dispatch:</b> Red pins drop on the map in real-time when intervention is required.</li>
+            </ul>
+            <button class="modal-btn" onclick="document.getElementById('welcome-modal').style.display='none'">Initialize Command Center</button>
+        </div>
+    </div>
+
+    <header><h2>PipeWatch Triage Command Center</h2></header>
+    <div class="container">
+        <div id="map"></div>
+        <div id="sidebar">
+            <h3 style="margin-top:0; color:#94a3b8; border-bottom:1px solid #334155; padding-bottom:10px;">Live Anomaly Feed</h3>
+            <div id="alerts">Waiting for telemetry data...</div>
+        </div>
+    </div>
+    <script>
+        var map = L.map('map').setView([-26.206, 28.040], 15);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16 }).addTo(map);
+        const blocks = { "Marshalltown-A": [-26.205, 28.039], "Marshalltown-B": [-26.207, 28.042], "Marshalltown-C": [-26.208, 28.038] };
+        
+        var alertLayer = L.layerGroup().addTo(map); // New layer group
+        
+        async function fetchAlerts() {
+            try {
+                const response = await fetch('/api/triage');
+                const data = await response.json();
+                let alertsHtml = '';
+                
+                alertLayer.clearLayers(); // Clears old dots every tick
+                
+                if(data.alerts && data.alerts.length > 0) {
+                    data.alerts.forEach(alert => {
+                        let coords = blocks[alert.block_id] || [-26.206, 28.040];
+                        L.circleMarker(coords, {color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.7, radius: 10, className: 'pulse'}).addTo(alertLayer)
+                            .bindPopup(`<b style="color:black;">${alert.block_id}</b><br><span style="color:black;">Risk: ${alert.asset_risk}</span>`).openPopup();
+                        alertsHtml += `<div class="alert-card"><h4>⚠️ ${alert.block_id}</h4><p style="margin:5px 0; font-size:0.9em;">Flow: ${alert.flow_rate} L/s<br>Pressure: ${alert.pressure} kPa</p></div>`;
+                    });
+                } else {
+                    alertsHtml = '<p style="color:#10b981;">System normal. No active anomalies.</p>';
+                }
+                document.getElementById('alerts').innerHTML = alertsHtml;
+            } catch (e) { console.log("Waiting for API..."); }
+        }
+        setInterval(fetchAlerts, 3000);
+    </script>
+</body>
+</html>
